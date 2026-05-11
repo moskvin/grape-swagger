@@ -135,3 +135,62 @@ describe 'format, content_type' do
     end
   end
 end
+
+describe 'consumes with file params' do
+  before :all do
+    module TheApi
+      class FileUploadConsumesApi < Grape::API
+        format :json
+
+        desc 'Upload an avatar'
+        params do
+          requires :avatar, type: ::Rack::Multipart::UploadedFile
+          optional :caption, type: String
+        end
+        post '/upload' do
+          { ok: true }
+        end
+
+        desc 'Explicit consumes wins over file-param detection',
+             consumes: ['application/json']
+        params do
+          requires :avatar, type: ::Rack::Multipart::UploadedFile
+        end
+        post '/upload_explicit' do
+          { ok: true }
+        end
+
+        desc 'No file param keeps the format default'
+        params do
+          requires :name, type: String
+        end
+        post '/text_only' do
+          { ok: true }
+        end
+
+        add_swagger_documentation
+      end
+    end
+  end
+
+  def app
+    TheApi::FileUploadConsumesApi
+  end
+
+  subject do
+    get '/swagger_doc'
+    JSON.parse(last_response.body)
+  end
+
+  it 'auto-sets multipart/form-data when a file param is present' do
+    expect(subject['paths']['/upload']['post']['consumes']).to eql ['multipart/form-data']
+  end
+
+  it 'respects an explicit per-route consumes even when a file param is present' do
+    expect(subject['paths']['/upload_explicit']['post']['consumes']).to eql ['application/json']
+  end
+
+  it 'leaves non-file endpoints on the format-derived consumes' do
+    expect(subject['paths']['/text_only']['post']['consumes']).to eql ['application/json']
+  end
+end

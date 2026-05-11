@@ -173,7 +173,17 @@ module Grape
     def consumes_object(route, format)
       return unless SUPPORTS_CONSUMES.include?(route.request_method.downcase.to_sym)
 
-      GrapeSwagger::DocMethods::ProducesConsumes.call(route.settings.dig(:description, :consumes) || format)
+      explicit = route.settings.dig(:description, :consumes)
+      return GrapeSwagger::DocMethods::ProducesConsumes.call(explicit) if explicit
+      return ['multipart/form-data'] if file_params?(route)
+
+      GrapeSwagger::DocMethods::ProducesConsumes.call(format)
+    end
+
+    def file_params?(route)
+      return false unless route.params.is_a?(Hash)
+
+      route.params.any? { |_, value| GrapeSwagger::DocMethods::DataType.call(value) == 'file' }
     end
 
     def params_object(route, options, path, consumes)
